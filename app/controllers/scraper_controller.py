@@ -10,8 +10,7 @@ load_dotenv()
 router = APIRouter()
 security = HTTPBearer()
 API_TOKEN = os.getenv("API_TOKEN")
-CACHE_HOST = os.getenv("CACHE_HOST")
-CACHE_PORT = os.getenv("CACHE_PORT")
+PROXY = os.getenv("PROXY")  # Load proxy from environment variables
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if credentials.credentials != API_TOKEN:
@@ -24,7 +23,9 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 async def scrape_products(settings: ScraperSettings):
     try:
         image_directory = "./image_directory"
-        scraper_service = ScraperService(image_directory=image_directory, settings=settings)
+        
+        # Pass the proxy string to the ScraperService
+        scraper_service = ScraperService(image_directory=image_directory, settings=settings, proxy=PROXY)
     
         await scraper_service.scrape()
         return {"message": "Scraping completed"}

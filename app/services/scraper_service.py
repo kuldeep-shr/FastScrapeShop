@@ -2,6 +2,7 @@ import os
 import re
 import aiohttp
 import asyncio
+from fastapi import HTTPException, status
 from bs4 import BeautifulSoup
 from app.utils.storage_strategy import JSONStorageStrategy
 from app.schemas.scraper_settings import ScraperSettings
@@ -9,14 +10,16 @@ from app.models.product_model import ProductModel
 from cachetools import TTLCache
 
 class ScraperService:
-    def __init__(self, image_directory: str, settings: ScraperSettings):
+    def __init__(self, image_directory: str, settings: ScraperSettings, proxy: str = None):
         self.settings = settings
         self.image_directory = image_directory
+        self.proxy = proxy
         self.storage_strategy = JSONStorageStrategy()
         self.cache = TTLCache(maxsize=1000, ttl=3600)
         
         # Ensure the image directory exists
         os.makedirs(self.image_directory, exist_ok=True)
+
 
     async def fetch(self, url: str, retries: int = 3, delay: int = 5):
         """Fetch content from a URL with retry mechanism."""
@@ -24,19 +27,20 @@ class ScraperService:
         while attempt < retries:
             async with aiohttp.ClientSession() as session:
                 try:
-                    async with session.get(url, ssl=False) as response:
+                    async with session.get(url, ssl=False, proxy=self.proxy) as response:
                         if response.status == 200:
                             return await response.text()
                         else:
                             print(f"Failed to fetch {url}: Status code {response.status}")
+                            if response.status >= 400:
+                                raise HTTPException(status_code=response.status, detail=f"Failed to fetch {url}: Status code {response.status}")
                 except Exception as e:
                     print(f"Attempt {attempt + 1} failed to fetch {url}: {str(e)}")
-
+                    if attempt >= retries - 1:
+                        raise
+                    await asyncio.sleep(delay * (2 ** attempt))
             attempt += 1
-            await asyncio.sleep(delay * (2 ** attempt))
-
-        print(f"Failed to fetch {url} after {retries} attempts")
-        return None
+        raise Exception(f"Failed to fetch {url} after {retries} attempts")
 
     async def fetch_image(self, url: str, filename: str):
         file_path = os.path.join(self.image_directory, filename)
@@ -44,7 +48,7 @@ class ScraperService:
         while attempt < 3:
             async with aiohttp.ClientSession() as session:
                 try:
-                    async with session.get(url, ssl=False) as response:
+                    async with session.get(url, ssl=False, proxy=self.proxy) as response:
                         if response.status == 200:
                             with open(file_path, 'wb') as f:
                                 f.write(await response.read())
