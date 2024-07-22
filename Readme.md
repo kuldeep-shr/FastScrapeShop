@@ -56,6 +56,7 @@ Welcome to the **Dental Stall Scraper**! This project is a web scraping tool bui
    API_TOKEN=your_api_token
    CACHE_HOST=your_cache_host
    CACHE_PORT=your_cache_port
+   PROXY=http://your_proxy_server:port
    ```
 
 ### Running the Application
@@ -106,6 +107,7 @@ Ensure you have a `.env` file with the following variables:
 API_TOKEN=your_api_token
 CACHE_HOST=your_cache_host
 CACHE_PORT=your_cache_port
+PROXY=http://your_proxy_server:port
 ```
 
 ## 🔄 Cache Management
