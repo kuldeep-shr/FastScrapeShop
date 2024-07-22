@@ -1,70 +1,81 @@
 import os
 import re
 import aiohttp
+import asyncio
 from bs4 import BeautifulSoup
 from app.utils.storage_strategy import JSONStorageStrategy
 from app.schemas.scraper_settings import ScraperSettings
 from app.models.product_model import ProductModel
 from cachetools import TTLCache
-from dotenv import load_dotenv
-
-load_dotenv()
 
 class ScraperService:
     def __init__(self, image_directory: str, settings: ScraperSettings):
         self.settings = settings
         self.image_directory = image_directory
         self.storage_strategy = JSONStorageStrategy()
-        self.cache = TTLCache(maxsize=10000, ttl=3600)
+        self.cache = TTLCache(maxsize=1000, ttl=3600)
         
         # Ensure the image directory exists
         os.makedirs(self.image_directory, exist_ok=True)
 
-    async def fetch(self, url: str):
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url, ssl=False) as response:  # Disable SSL verification
-                    return await response.text()
-            except Exception as e:
-                print(f"Failed to fetch {url}: {str(e)}")
-                return None
+    async def fetch(self, url: str, retries: int = 3, delay: int = 5):
+        """Fetch content from a URL with retry mechanism."""
+        attempt = 0
+        while attempt < retries:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.get(url, ssl=False) as response:
+                        if response.status == 200:
+                            return await response.text()
+                        else:
+                            print(f"Failed to fetch {url}: Status code {response.status}")
+                except Exception as e:
+                    print(f"Attempt {attempt + 1} failed to fetch {url}: {str(e)}")
+
+            attempt += 1
+            await asyncio.sleep(delay * (2 ** attempt))
+
+        print(f"Failed to fetch {url} after {retries} attempts")
+        return None
 
     async def fetch_image(self, url: str, filename: str):
         file_path = os.path.join(self.image_directory, filename)
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url, ssl=False) as response:
-                    if response.status == 200:
-                        with open(file_path, 'wb') as f:
-                            f.write(await response.read())
-                        return file_path
-                    else:
-                        print(f"Failed to fetch image {url}: Status code {response.status}")
-                        return "default_image_path"  # Provide a default path or empty string
-            except Exception as e:
-                print(f"Failed to fetch image {url}: {str(e)}")
-                return "default_image_path"  # Provide a default path or empty string
+        attempt = 0
+        while attempt < 3:
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.get(url, ssl=False) as response:
+                        if response.status == 200:
+                            with open(file_path, 'wb') as f:
+                                f.write(await response.read())
+                            return file_path
+                        else:
+                            print(f"Failed to fetch image {url}: Status code {response.status}")
+                except Exception as e:
+                    print(f"Attempt {attempt + 1} failed to fetch image {url}: {str(e)}")
+
+            attempt += 1
+            await asyncio.sleep(5 * (2 ** attempt))
+
+        return "default_image_path"
 
     def extract_price(self, price_text: str) -> float:
-        # Remove any non-numeric characters except for decimal points
+        """Extracts and converts the price text to a float value."""
         cleaned_price = re.sub(r'[^\d.,]', '', price_text)
-        # Replace commas with dots for decimal point separation
         cleaned_price = cleaned_price.replace(',', '.')
         try:
-            # Convert the cleaned price to a float
             return float(cleaned_price)
         except ValueError:
-            # Print a warning if conversion fails and return default value 0.0
             print(f"Failed to convert price '{price_text}' to float")
             return 0.0
 
     async def scrape_page(self, page_number: int):
+        """Scrapes a single page and returns a list of product data."""
         url = f"https://dentalstall.com/shop/?page={page_number}"
         page_content = await self.fetch(url)
         if page_content is None:
             return []
 
-        print(f"Page content for page {page_number}:\n{page_content[:1000]}...") 
         soup = BeautifulSoup(page_content, 'html.parser')
         products = []
 
@@ -83,19 +94,11 @@ class ScraperService:
                 filename = img_url.split('/')[-1]
                 image_path = await self.fetch_image(img_url, filename)
             else:
-                image_path = "default_image_path"  # Provide a default value or empty string
+                image_path = "default_image_path"
 
-            # Log the title and price before cache check
-            print(f"Product title: {title}, Price: {price}")
+            if title in self.cache and self.cache[title] == price:
+                continue
 
-            # Check if the product is in the cache and if the price has changed
-            if title in self.cache:
-                if self.cache[title] == price:
-                    print(f"Product {title} is already in cache with the same price. Skipping...")
-                    continue  # Skip if the price hasn't changed
-
-            # Add the product data to the cache
-            self.cache["text value 1"] = 11
             product_data = ProductModel(
                 product_title=title,
                 product_price=price,
@@ -103,17 +106,18 @@ class ScraperService:
             )
 
             products.append(product_data.model_dump())
+            self.cache[title] = price
 
         return products
 
     async def scrape(self):
+        """Scrapes multiple pages and saves the product data."""
         all_products = []
         for page in range(1, self.settings.num_pages + 1):
             products = await self.scrape_page(page)
             all_products.extend(products)
 
         self.storage_strategy.save(all_products)
-        print(f"Scraped {len(all_products)} products.")
 
     def get_cache(self):
         """Return the current cache as a dictionary."""
