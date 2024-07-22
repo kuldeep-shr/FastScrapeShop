@@ -98,36 +98,6 @@ All endpoints require a valid `API_TOKEN` passed in the Authorization header.
   }
   ```
 
-### Get Cache
-
-- **GET /api/cache**
-
-  Retrieve the current cache.
-
-  **Response:**
-
-  ```json
-  {
-    "cache": {
-      "product_title": "price"
-    }
-  }
-  ```
-
-### Clear Cache
-
-- **POST /api/cache/clear**
-
-  Clear the current cache.
-
-  **Response:**
-
-  ```json
-  {
-    "message": "Cache cleared"
-  }
-  ```
-
 ## 🌐 Environment Variables
 
 Ensure you have a `.env` file with the following variables:
@@ -141,12 +111,6 @@ CACHE_PORT=your_cache_port
 ## 🔄 Cache Management
 
 The scraper uses a TTL (Time-To-Live) cache to store product data temporarily. This helps reduce redundant requests and speeds up the scraping process.
-
-Get Cache
-You can retrieve the current cache by calling the /api/cache endpoint.
-
-Clear Cache
-To clear the cache, call the /api/cache/clear endpoint.
 
 ## 🤝 Contributing
 

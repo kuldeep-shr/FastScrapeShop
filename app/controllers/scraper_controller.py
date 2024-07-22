@@ -30,9 +30,3 @@ async def scrape_products(settings: ScraperSettings):
         return {"message": "Scraping completed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-@router.get("/cache")
-async def get_cache():
-    scraper_service = ScraperService(image_directory="./image_directory", settings=ScraperSettings(num_pages=1))
-    # scraper_service = ScraperService()
-    return scraper_service.get_cache()

@@ -118,12 +118,3 @@ class ScraperService:
             all_products.extend(products)
 
         self.storage_strategy.save(all_products)
-
-    def get_cache(self):
-        """Return the current cache as a dictionary."""
-        return {key: value for key, value in self.cache.items()}
-
-    def clear_cache(self):
-        """Clear the cache."""
-        self.cache.clear()
-        print("Cache cleared")
