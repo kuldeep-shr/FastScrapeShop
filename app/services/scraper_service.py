@@ -15,7 +15,7 @@ class ScraperService:
         self.settings = settings
         self.image_directory = image_directory
         self.storage_strategy = JSONStorageStrategy()
-        self.cache = TTLCache(maxsize=1000, ttl=3600)  # Cache with TTL of 1 hour
+        self.cache = TTLCache(maxsize=10000, ttl=3600)
         
         # Ensure the image directory exists
         os.makedirs(self.image_directory, exist_ok=True)
@@ -95,10 +95,7 @@ class ScraperService:
                     continue  # Skip if the price hasn't changed
 
             # Add the product data to the cache
-            self.cache[title] = price
-            print(f"Added to cache: {title} with price {price}")
-            print("IN cache",self.cache)
-            print(f"Image URL: {img_url}")
+            self.cache["text value 1"] = 11
             product_data = ProductModel(
                 product_title=title,
                 product_price=price,
